@@ -12,33 +12,28 @@ class PetView(APIView, PageNumberPagination):
 
         pets_pagination = self.paginate_queryset(pets, request, view=self)
 
-        serializer = PetSerializer(data=pets_pagination, many=True)
+        serializer = PetSerializer(instance=pets_pagination, many=True)
 
         return self.get_paginated_response(serializer.data)
 
     def post(self, request: Request) -> Response:
         validate_data_serializer = PetSerializer(data=request.data)
 
-        if not validate_data_serializer.is_valid():
-            return Response(
-                data=validate_data_serializer.errors, status=status.HTTP_400_BAD_REQUEST
-            )
+        validate_data_serializer.is_valid(raise_exception=True)
 
         pet_data = validate_data_serializer.validated_data.copy()
         group_request_data = pet_data.pop("group")
         trait_request_data = pet_data.pop("traits")
 
-        new_pet = Pet.objects.create(**pet_data)
-
         group_data, created = Group.objects.get_or_create(
-            scientific_name=group_request_data["scientific_name"],
+            scientific_name__iexact=group_request_data["scientific_name"],
             defaults=group_request_data,
         )
 
-        new_pet.group = group_data
+        new_pet = Pet.objects.create(**pet_data, group=group_data)
 
         traits_list = [
-            Trait.objects.get_or_create(name=trait["name"], defaults=trait)[0]
+            Trait.objects.get_or_create(name__iexact=trait["name"], defaults=trait)[0]
             for trait in trait_request_data
         ]
 
